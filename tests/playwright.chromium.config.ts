@@ -12,7 +12,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 export default defineConfig({
   ...base,
   testDir: `${root}tests/e2e`,
-  webServer: { ...base.webServer, command: "node scripts/serve-docs.mjs", cwd: root },
+  webServer: { ...base.webServer, command: "node scripts/serve.mjs", cwd: root },
   projects: [
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
     {

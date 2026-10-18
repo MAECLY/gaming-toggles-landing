@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
 
-const root = resolve("docs");
+const root = resolve("public");
 const port = Number(process.env.PORT ?? 4173);
 const types = new Map([
   [".css", "text/css; charset=utf-8"],

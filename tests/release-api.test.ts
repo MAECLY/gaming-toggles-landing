@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { parseLatestRelease } from "../docs/assets/main.js";
+import { parseLatestRelease } from "../public/assets/main.js";
 
 describe("API de GitHub Releases", () => {
   it("elige el instalador de Stream Deck e ignora otros assets", () => {

@@ -15,7 +15,7 @@ export default defineConfig({
     screenshot: "only-on-failure"
   },
   webServer: {
-    command: "node scripts/serve-docs.mjs",
+    command: "node scripts/serve.mjs",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: true,
     timeout: 20_000

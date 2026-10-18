@@ -1,0 +1,35 @@
+{
+  "name": "gaming-toggles-landing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Landing ES/EN de Gaming Toggles for PC, publicada en Vercel.",
+  "homepage": "https://gaming-toggles.maecly.com/",
+  "author": {
+    "name": "MAECLY",
+    "email": "hola@maecly.com",
+    "url": "https://www.maecly.com/"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MAECLY/gaming-toggles-landing.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MAECLY/gaming-toggles-landing/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "serve": "node scripts/serve.mjs",
+    "test": "node --test tests/website-content.test.ts tests/release-api.test.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:chromium": "playwright test --config tests/playwright.chromium.config.ts"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.64.0",
+    "@types/node": "^24.19.2"
+  }
+}

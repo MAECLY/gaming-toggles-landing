@@ -7,7 +7,7 @@ const marketplace = "https://marketplace.elgato.com/product/gaming-toggles-for-p
 
 describe("landing estática ES/EN", () => {
   it("incluye canonical, hreflang, Open Graph, Twitter y JSON-LD válidos", async () => {
-    for (const page of ["docs/index.html", "docs/en/index.html"]) {
+    for (const page of ["public/index.html", "public/en/index.html"]) {
       const html = await readFile(page, "utf8");
       assert.match(html, /rel="canonical" href="https:\/\/gaming-toggles\.maecly\.com\//);
       assert.match(html, /hreflang="es"/);
@@ -22,16 +22,19 @@ describe("landing estática ES/EN", () => {
     }
   });
 
-  it("publica robots, sitemap, agents, llms, manifest y CNAME coherentes", async () => {
-    const [cname, robots, sitemap, agents, llms, manifest] = await Promise.all([
-      readFile("docs/CNAME", "utf8"),
-      readFile("docs/robots.txt", "utf8"),
-      readFile("docs/sitemap.xml", "utf8"),
-      readFile("docs/agents.txt", "utf8"),
-      readFile("docs/llms.txt", "utf8"),
-      readFile("docs/site.webmanifest", "utf8")
+  it("publica robots, sitemap, agents, llms, manifest y config de Vercel coherentes", async () => {
+    const [vercel, robots, sitemap, agents, llms, manifest] = await Promise.all([
+      readFile("vercel.json", "utf8"),
+      readFile("public/robots.txt", "utf8"),
+      readFile("public/sitemap.xml", "utf8"),
+      readFile("public/agents.txt", "utf8"),
+      readFile("public/llms.txt", "utf8"),
+      readFile("public/site.webmanifest", "utf8")
     ]);
-    assert.equal(cname.trim(), "gaming-toggles.maecly.com");
+    // Las páginas usan rutas relativas ("../assets"), así que /en debe redirigir a /en/.
+    const config = JSON.parse(vercel);
+    assert.equal(config.outputDirectory, "public");
+    assert.equal(config.trailingSlash, true);
     assert.match(robots, /Sitemap: https:\/\/gaming-toggles\.maecly\.com\/sitemap\.xml/);
     assert.match(sitemap, new RegExp(canonicalRoot.replaceAll(".", "\\.")));
     assert.match(agents, /MAECLY/);
@@ -41,27 +44,27 @@ describe("landing estática ES/EN", () => {
 
   it("incluye todos los recursos visuales críticos", async () => {
     await Promise.all([
-      "docs/assets/plugin-icon.png",
-      "docs/assets/game-mode-on.png",
-      "docs/assets/game-mode-off.png",
-      "docs/assets/game-bar-on.png",
-      "docs/assets/game-bar-off.png",
-      "docs/assets/xbox-mode.png",
-      "docs/assets/pointer-precision-on.png",
-      "docs/assets/pointer-precision-off.png",
-      "docs/assets/power-plan-a.png",
-      "docs/assets/power-plan-b.png",
-      "docs/assets/power-plan-other.png",
-      "docs/assets/auto-hdr-on.png",
-      "docs/assets/auto-hdr-off.png",
-      "docs/assets/windowed-on.png",
-      "docs/assets/windowed-off.png",
-      "docs/assets/og.png"
+      "public/assets/plugin-icon.png",
+      "public/assets/game-mode-on.png",
+      "public/assets/game-mode-off.png",
+      "public/assets/game-bar-on.png",
+      "public/assets/game-bar-off.png",
+      "public/assets/xbox-mode.png",
+      "public/assets/pointer-precision-on.png",
+      "public/assets/pointer-precision-off.png",
+      "public/assets/power-plan-a.png",
+      "public/assets/power-plan-b.png",
+      "public/assets/power-plan-other.png",
+      "public/assets/auto-hdr-on.png",
+      "public/assets/auto-hdr-off.png",
+      "public/assets/windowed-on.png",
+      "public/assets/windowed-off.png",
+      "public/assets/og.png"
     ].map((path) => access(path)));
   });
 
   it("presenta las siete acciones en el live demo del hero", async () => {
-    for (const page of ["docs/index.html", "docs/en/index.html"]) {
+    for (const page of ["public/index.html", "public/en/index.html"]) {
       const html = await readFile(page, "utf8");
       assert.equal(html.match(/<button class="deck-key/g)?.length, 7);
       assert.equal(html.match(/data-demo="toggle"/g)?.length, 5);
@@ -74,7 +77,7 @@ describe("landing estática ES/EN", () => {
   });
 
   it("deja descarga y versión bajo control del último GitHub Release", async () => {
-    for (const page of ["docs/index.html", "docs/en/index.html"]) {
+    for (const page of ["public/index.html", "public/en/index.html"]) {
       const html = await readFile(page, "utf8");
       assert.equal(html.match(/data-latest-download/g)?.length, 3);
       assert.equal(html.match(/data-release-version/g)?.length, 2);
@@ -86,7 +89,7 @@ describe("landing estática ES/EN", () => {
   });
 
   it("ofrece Marketplace sin confundirlo con la versión dinámica de GitHub", async () => {
-    for (const page of ["docs/index.html", "docs/en/index.html"]) {
+    for (const page of ["public/index.html", "public/en/index.html"]) {
       const html = await readFile(page, "utf8");
       const links = html.match(/<a\b[^>]*data-marketplace-link[^>]*>/g) ?? [];
       assert.equal(links.length, 3);
@@ -99,7 +102,7 @@ describe("landing estática ES/EN", () => {
       const schema = JSON.parse(html.match(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/)![1]);
       assert.deepEqual(schema["@graph"].find((item) => item["@type"] === "SoftwareApplication").sameAs, [marketplace]);
     }
-    for (const file of ["README.md", "RELEASING.md", "docs/agents.txt", "docs/llms.txt"]) {
+    for (const file of ["README.md", "public/agents.txt", "public/llms.txt"]) {
       const content = await readFile(file, "utf8");
       assert.ok(content.includes(marketplace), `${file} must link to the product listing`);
       assert.doesNotMatch(content, /etapa previa al Marketplace|Marketplace está pendiente|Cuando Elgato apruebe/i);
