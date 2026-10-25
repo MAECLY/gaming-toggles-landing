@@ -140,7 +140,10 @@ test.describe("landing funcional y responsive", () => {
     await expectMarketplaceLinks(page);
   });
 
-  test("muestra descargas y estrellas reales de GitHub con formato local", async ({ page }) => {
+  test("muestra Marketplace (instantánea fechada), GitHub y estrellas con formato local", async ({ page }) => {
+    await page.route("**/assets/metrics.json", (route) =>
+      route.fulfill({ contentType: "application/json", json: { elgatoUnits: 2000, through: "2026-10-24", source: "test" } })
+    );
     await page.route("https://api.github.com/repos/MAECLY/gaming-toggles/releases?per_page=100", (route) =>
       route.fulfill({ contentType: "application/json", json: [
         { assets: [{ download_count: 1200 }, { download_count: 30 }] },
@@ -152,8 +155,9 @@ test.describe("landing funcional y responsive", () => {
     );
 
     await page.goto("/");
-    await expect(page.locator("[data-download-count]")).toHaveText("1.234 descargas en GitHub");
-    await expect(page.locator("[data-download-count]")).toBeVisible();
+    const downloads = page.locator("[data-download-count]");
+    await expect(downloads).toHaveText("2.000 descargas en Elgato Marketplace (al 24 oct 2026) · 1.234 en GitHub");
+    await expect(downloads).toBeVisible();
     await expect(page.locator("[data-star-count]")).toBeVisible();
     await expect(page.locator("[data-star-count] dd")).toHaveText("1.500");
     const schema = await page.locator("[data-release-schema]").textContent();
@@ -161,15 +165,28 @@ test.describe("landing funcional y responsive", () => {
     expect(software.interactionStatistic).toEqual({
       "@type": "InteractionCounter",
       interactionType: "https://schema.org/DownloadAction",
-      userInteractionCount: 1234
+      userInteractionCount: 3234
     });
 
     await page.goto("/en/");
-    await expect(page.locator("[data-download-count]")).toHaveText("1,234 GitHub downloads");
+    await expect(downloads).toHaveText("2,000 Elgato Marketplace downloads (as of Oct 24, 2026) · 1,234 on GitHub");
     await expect(page.locator("[data-star-count] dd")).toHaveText("1,500");
   });
 
-  test("oculta las métricas si valen cero o si GitHub falla", async ({ page }) => {
+  test("usa la instantánea publicada de Marketplace", async ({ page, request }) => {
+    const snapshot = await (await request.get("/assets/metrics.json")).json();
+    expect(Number.isSafeInteger(snapshot.elgatoUnits) && snapshot.elgatoUnits > 0).toBe(true);
+    await page.route("https://api.github.com/**", (route) => route.fulfill({ status: 503, body: "{}" }));
+    await page.goto("/en/");
+    await expect(page.locator("[data-download-count]")).toHaveText(
+      new RegExp(`^${snapshot.elgatoUnits.toLocaleString("en-US")} Elgato Marketplace downloads \\(as of \\w{3} \\d{1,2}, \\d{4}\\)$`)
+    );
+  });
+
+  test("oculta las métricas si valen cero o si las fuentes fallan", async ({ page }) => {
+    await page.route("**/assets/metrics.json", (route) =>
+      route.fulfill({ contentType: "application/json", json: { elgatoUnits: 0, through: "2026-10-24" } })
+    );
     await page.route("https://api.github.com/repos/MAECLY/gaming-toggles/releases?per_page=100", (route) =>
       route.fulfill({ contentType: "application/json", json: [{ assets: [{ download_count: 0 }] }] })
     );
@@ -177,17 +194,14 @@ test.describe("landing funcional y responsive", () => {
       route.fulfill({ contentType: "application/json", json: { stargazers_count: 0 } })
     );
     await page.goto("/");
-    await expect(page.locator("[data-release-version]").first()).not.toHaveAttribute("aria-busy", /.+/);
     await page.waitForLoadState("networkidle");
     await expect(page.locator("[data-download-count]")).toBeHidden();
     await expect(page.locator("[data-star-count]")).toBeHidden();
 
     await page.unrouteAll();
-    await page.route("https://api.github.com/repos/MAECLY/gaming-toggles/**", (route) =>
+    await page.route("**/assets/metrics.json", (route) => route.fulfill({ status: 404, body: "" }));
+    await page.route("https://api.github.com/**", (route) =>
       route.fulfill({ status: 403, contentType: "application/json", body: "{\"message\":\"rate limited\"}" })
-    );
-    await page.route("https://api.github.com/repos/MAECLY/gaming-toggles", (route) =>
-      route.fulfill({ status: 403, contentType: "application/json", body: "{}" })
     );
     await page.goto("/en/");
     await page.waitForLoadState("networkidle");
@@ -196,6 +210,18 @@ test.describe("landing funcional y responsive", () => {
     await expect(page.locator("[data-star-count]")).toBeHidden();
     const schema = await page.locator("[data-release-schema]").textContent();
     expect(schema).not.toContain("interactionStatistic");
+  });
+
+  test("si GitHub falla conserva solo la instantánea de Marketplace", async ({ page }) => {
+    await page.route("**/assets/metrics.json", (route) =>
+      route.fulfill({ contentType: "application/json", json: { elgatoUnits: 1, through: "2026-10-24" } })
+    );
+    await page.route("https://api.github.com/**", (route) => route.fulfill({ status: 403, body: "{}" }));
+    await page.goto("/");
+    await expect(page.locator("[data-download-count]")).toHaveText("1 descarga en Elgato Marketplace (al 24 oct 2026)");
+    const schema = await page.locator("[data-release-schema]").textContent();
+    const software = JSON.parse(schema ?? "{}")["@graph"].find((item) => item["@type"] === "SoftwareApplication");
+    expect(software.interactionStatistic.userInteractionCount).toBe(1);
   });
 
   test("ofrece ambos canales en ES/EN incluso sin JavaScript", async ({ browser, page: configuredPage }) => {

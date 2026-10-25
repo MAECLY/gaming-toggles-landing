@@ -284,6 +284,7 @@ code {
 .hero-specs li { display: flex; align-items: center; gap: .5rem; }
 /* Las métricas públicas arrancan ocultas y solo aparecen con una cifra real de GitHub. */
 .hero-specs li[hidden],
+.hero-metrics[hidden],
 .facts > div[hidden] { display: none; }
 /* Rules only where the row cannot wrap; otherwise a separator orphans onto a new line. */
 @media (min-width: 560px) {
@@ -297,6 +298,14 @@ code {
 }
 @media (max-width: 559px) {
   .hero-specs { gap: .4rem 1.5rem; }
+}
+
+/* Descargas en su propia línea: es la frase más larga y en la fila de specs dejaría separadores huérfanos. */
+.hero-metrics {
+  margin: .6rem 0 0;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: .75rem;
 }
 
 .distribution-note {

@@ -5,6 +5,8 @@ import {
   fetchStarCount,
   fetchTotalDownloads,
   formatCount,
+  formatSnapshotDate,
+  parseMarketplaceSnapshot,
   parseLatestRelease,
   sumReleaseDownloads
 } from "../public/assets/main.js";
@@ -78,5 +80,21 @@ describe("métricas públicas de GitHub", () => {
     assert.equal(formatCount(1234, "es"), "1.234");
     assert.equal(formatCount(1234, "en"), "1,234");
     assert.equal(formatCount(10, "es"), "10");
+  });
+});
+
+describe("instantánea de Elgato Marketplace", () => {
+  it("acepta unidades enteras y una fecha ISO y rechaza lo demás", () => {
+    assert.deepEqual(parseMarketplaceSnapshot({ elgatoUnits: 324, through: "2026-10-24", source: "x" }), { units: 324, through: "2026-10-24" });
+    assert.throws(() => parseMarketplaceSnapshot({ elgatoUnits: "324", through: "2026-10-24" }), /inválida/);
+    assert.throws(() => parseMarketplaceSnapshot({ elgatoUnits: 324 }), /fecha válida/);
+    assert.throws(() => parseMarketplaceSnapshot({ elgatoUnits: 324, through: "24/10/2026" }), /fecha válida/);
+    assert.throws(() => parseMarketplaceSnapshot(null), /inválida/);
+  });
+
+  it("fecha la instantánea según el idioma sin desfase horario", () => {
+    assert.equal(formatSnapshotDate("2026-10-24", "es"), "24 oct 2026");
+    assert.equal(formatSnapshotDate("2026-10-24", "en"), "Oct 24, 2026");
+    assert.equal(formatSnapshotDate("2026-01-01", "en"), "Jan 1, 2026");
   });
 });
