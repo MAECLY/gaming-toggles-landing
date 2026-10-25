@@ -88,6 +88,20 @@ describe("landing estática ES/EN", () => {
     }
   });
 
+  it("oculta las métricas públicas hasta conocer una cifra real de GitHub", async () => {
+    for (const page of ["public/index.html", "public/en/index.html"]) {
+      const html = await readFile(page, "utf8");
+      const downloads = html.match(/<li data-download-count[^>]*>([^<]*)<\/li>/);
+      assert.ok(downloads, `${page} debe reservar el recuento de descargas`);
+      assert.match(downloads[0], /\shidden>/);
+      assert.equal(downloads[1], "");
+      assert.match(downloads[0], /data-label-other="\{count\} (descargas en GitHub|GitHub downloads)"/);
+      const stars = html.match(/<div data-star-count hidden><dt>[^<]+<\/dt><dd><\/dd><\/div>/);
+      assert.ok(stars, `${page} debe reservar las estrellas vacías y ocultas`);
+      assert.doesNotMatch(html, /"interactionStatistic"/);
+    }
+  });
+
   it("ofrece Marketplace sin confundirlo con la versión dinámica de GitHub", async () => {
     for (const page of ["public/index.html", "public/en/index.html"]) {
       const html = await readFile(page, "utf8");

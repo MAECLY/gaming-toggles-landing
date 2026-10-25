@@ -1,4 +1,8 @@
 const RELEASE_API = "https://api.github.com/repos/MAECLY/gaming-toggles/releases/latest";
+const REPO_API = "https://api.github.com/repos/MAECLY/gaming-toggles";
+const RELEASES_API = `${REPO_API}/releases?per_page=100`;
+const MAX_RELEASE_PAGES = 10;
+const GITHUB_HEADERS = { Accept: "application/vnd.github+json" };
 
 export function parseLatestRelease(release) {
   if (!release || typeof release !== "object") {
@@ -141,6 +145,111 @@ export async function hydrateLatestRelease(fetchRelease = fetch, root = document
   }
 }
 
+export function sumReleaseDownloads(releases) {
+  if (!Array.isArray(releases)) throw new TypeError("GitHub devolvió una lista de Releases inválida.");
+  return releases.reduce((total, release) => {
+    const assets = Array.isArray(release?.assets) ? release.assets : [];
+    return total + assets.reduce((sum, asset) =>
+      sum + (Number.isSafeInteger(asset?.download_count) && asset.download_count > 0 ? asset.download_count : 0), 0);
+  }, 0);
+}
+
+function nextPageUrl(response) {
+  const link = response.headers?.get?.("link") ?? "";
+  return link.match(/<([^>]+)>;\s*rel="next"/)?.[1] ?? null;
+}
+
+// Suma las descargas de todas las páginas; si cualquier página falla no se muestra
+// ninguna cifra, para no publicar un total incompleto como si fuera el real.
+export async function fetchTotalDownloads(fetchJson = fetch) {
+  let url = RELEASES_API;
+  let total = 0;
+  for (let page = 0; url && page < MAX_RELEASE_PAGES; page += 1) {
+    const response = await fetchJson(url, { headers: GITHUB_HEADERS });
+    if (!response.ok) throw new Error(`GitHub API ${response.status}`);
+    total += sumReleaseDownloads(await response.json());
+    url = nextPageUrl(response);
+  }
+  if (url) throw new Error("Demasiadas páginas de Releases.");
+  return total;
+}
+
+export async function fetchStarCount(fetchJson = fetch) {
+  const response = await fetchJson(REPO_API, { headers: GITHUB_HEADERS });
+  if (!response.ok) throw new Error(`GitHub API ${response.status}`);
+  const stars = (await response.json())?.stargazers_count;
+  if (!Number.isSafeInteger(stars) || stars < 0) throw new TypeError("Recuento de estrellas inválido.");
+  return stars;
+}
+
+export function formatCount(value, lang = "es") {
+  return new Intl.NumberFormat(lang === "en" ? "en-US" : "es-ES", { useGrouping: "always" }).format(value);
+}
+
+function isPositiveCount(value) {
+  return Number.isSafeInteger(value) && value > 0;
+}
+
+// Solo se muestran cifras conocidas y mayores que cero; el resto permanece oculto.
+export function applyPublicMetrics({ downloads = null, stars = null } = {}, root = document) {
+  const lang = root.documentElement?.lang || "es";
+
+  root.querySelectorAll("[data-download-count]").forEach((node) => {
+    if (!isPositiveCount(downloads)) {
+      node.hidden = true;
+      return;
+    }
+    const plural = new Intl.PluralRules(lang).select(downloads) === "one" ? "labelOne" : "labelOther";
+    const template = node.dataset[plural] ?? "{count}";
+    node.textContent = template.replace("{count}", formatCount(downloads, lang));
+    node.hidden = false;
+  });
+
+  root.querySelectorAll("[data-star-count]").forEach((node) => {
+    const value = node.querySelector("dd") ?? node;
+    if (!isPositiveCount(stars)) {
+      node.hidden = true;
+      return;
+    }
+    value.textContent = formatCount(stars, lang);
+    node.hidden = false;
+  });
+
+  const schemaNode = root.querySelector("[data-release-schema]");
+  if (schemaNode?.textContent && isPositiveCount(downloads)) {
+    try {
+      const schema = JSON.parse(schemaNode.textContent);
+      const software = schema["@graph"]?.find((item) => item["@type"] === "SoftwareApplication");
+      if (software) {
+        software.interactionStatistic = {
+          "@type": "InteractionCounter",
+          interactionType: "https://schema.org/DownloadAction",
+          userInteractionCount: downloads
+        };
+        schemaNode.textContent = JSON.stringify(schema);
+      }
+    } catch (error) {
+      console.info("No se pudieron actualizar las métricas en los metadatos.", error);
+    }
+  }
+}
+
+export async function hydratePublicMetrics(fetchJson = fetch, root = document) {
+  const [downloads, stars] = await Promise.all([
+    fetchTotalDownloads(fetchJson).catch((error) => {
+      console.info("No se pudo consultar el total de descargas; no se muestra la cifra.", error);
+      return null;
+    }),
+    fetchStarCount(fetchJson).catch((error) => {
+      console.info("No se pudo consultar el número de estrellas; no se muestra la cifra.", error);
+      return null;
+    })
+  ]);
+  const metrics = { downloads, stars };
+  applyPublicMetrics(metrics, root);
+  return metrics;
+}
+
 function initialize() {
   document.querySelectorAll(".deck-key[data-demo]").forEach((key) => {
     key.addEventListener("click", () => activateDemoKey(key));
@@ -162,6 +271,7 @@ function initialize() {
   }
 
   void hydrateLatestRelease();
+  void hydratePublicMetrics();
 }
 
 if (typeof document !== "undefined") initialize();
