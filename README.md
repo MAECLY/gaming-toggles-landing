@@ -1,5 +1,7 @@
 # Gaming Toggles — landing
 
+[![Estrellas](https://img.shields.io/github/stars/MAECLY/gaming-toggles-landing?style=flat-square&label=estrellas)](https://github.com/MAECLY/gaming-toggles-landing/stargazers) [![Visitas](https://hits.sh/github.com/MAECLY/gaming-toggles-landing.svg?label=visitas&style=flat-square)](https://hits.sh/github.com/MAECLY/gaming-toggles-landing/) [![Último commit](https://img.shields.io/github/last-commit/MAECLY/gaming-toggles-landing?style=flat-square&label=último%20commit)](https://github.com/MAECLY/gaming-toggles-landing/commits/main)
+
 Landing estática (ES/EN) de [Gaming Toggles for PC](https://github.com/MAECLY/gaming-toggles),
 publicada en [gaming-toggles.maecly.com](https://gaming-toggles.maecly.com/) con Vercel.
 
