@@ -282,6 +282,9 @@ code {
   font-size: .75rem;
 }
 .hero-specs li { display: flex; align-items: center; gap: .5rem; }
+/* Las métricas públicas arrancan ocultas y solo aparecen con una cifra real de GitHub. */
+.hero-specs li[hidden],
+.facts > div[hidden] { display: none; }
 /* Rules only where the row cannot wrap; otherwise a separator orphans onto a new line. */
 @media (min-width: 560px) {
   .hero-specs li + li::before {

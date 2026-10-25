@@ -140,6 +140,64 @@ test.describe("landing funcional y responsive", () => {
     await expectMarketplaceLinks(page);
   });
 
+  test("muestra descargas y estrellas reales de GitHub con formato local", async ({ page }) => {
+    await page.route("https://api.github.com/repos/MAECLY/gaming-toggles/releases?per_page=100", (route) =>
+      route.fulfill({ contentType: "application/json", json: [
+        { assets: [{ download_count: 1200 }, { download_count: 30 }] },
+        { assets: [{ download_count: 4 }] }
+      ] })
+    );
+    await page.route("https://api.github.com/repos/MAECLY/gaming-toggles", (route) =>
+      route.fulfill({ contentType: "application/json", json: { stargazers_count: 1500 } })
+    );
+
+    await page.goto("/");
+    await expect(page.locator("[data-download-count]")).toHaveText("1.234 descargas en GitHub");
+    await expect(page.locator("[data-download-count]")).toBeVisible();
+    await expect(page.locator("[data-star-count]")).toBeVisible();
+    await expect(page.locator("[data-star-count] dd")).toHaveText("1.500");
+    const schema = await page.locator("[data-release-schema]").textContent();
+    const software = JSON.parse(schema ?? "{}")["@graph"].find((item) => item["@type"] === "SoftwareApplication");
+    expect(software.interactionStatistic).toEqual({
+      "@type": "InteractionCounter",
+      interactionType: "https://schema.org/DownloadAction",
+      userInteractionCount: 1234
+    });
+
+    await page.goto("/en/");
+    await expect(page.locator("[data-download-count]")).toHaveText("1,234 GitHub downloads");
+    await expect(page.locator("[data-star-count] dd")).toHaveText("1,500");
+  });
+
+  test("oculta las métricas si valen cero o si GitHub falla", async ({ page }) => {
+    await page.route("https://api.github.com/repos/MAECLY/gaming-toggles/releases?per_page=100", (route) =>
+      route.fulfill({ contentType: "application/json", json: [{ assets: [{ download_count: 0 }] }] })
+    );
+    await page.route("https://api.github.com/repos/MAECLY/gaming-toggles", (route) =>
+      route.fulfill({ contentType: "application/json", json: { stargazers_count: 0 } })
+    );
+    await page.goto("/");
+    await expect(page.locator("[data-release-version]").first()).not.toHaveAttribute("aria-busy", /.+/);
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator("[data-download-count]")).toBeHidden();
+    await expect(page.locator("[data-star-count]")).toBeHidden();
+
+    await page.unrouteAll();
+    await page.route("https://api.github.com/repos/MAECLY/gaming-toggles/**", (route) =>
+      route.fulfill({ status: 403, contentType: "application/json", body: "{\"message\":\"rate limited\"}" })
+    );
+    await page.route("https://api.github.com/repos/MAECLY/gaming-toggles", (route) =>
+      route.fulfill({ status: 403, contentType: "application/json", body: "{}" })
+    );
+    await page.goto("/en/");
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator("[data-download-count]")).toBeHidden();
+    await expect(page.locator("[data-download-count]")).toHaveText("");
+    await expect(page.locator("[data-star-count]")).toBeHidden();
+    const schema = await page.locator("[data-release-schema]").textContent();
+    expect(schema).not.toContain("interactionStatistic");
+  });
+
   test("ofrece ambos canales en ES/EN incluso sin JavaScript", async ({ browser, page: configuredPage }) => {
     const context = await browser.newContext({ javaScriptEnabled: false, viewport: configuredPage.viewportSize() });
     const page = await context.newPage();
