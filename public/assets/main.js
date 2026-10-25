@@ -3,6 +3,8 @@ const REPO_API = "https://api.github.com/repos/MAECLY/gaming-toggles";
 const RELEASES_API = `${REPO_API}/releases?per_page=100`;
 const MAX_RELEASE_PAGES = 10;
 const GITHUB_HEADERS = { Accept: "application/vnd.github+json" };
+// Instantánea fechada de Elgato Marketplace (sin API pública): ver README para actualizarla.
+const MARKETPLACE_SNAPSHOT = new URL("metrics.json", import.meta.url).href;
 
 export function parseLatestRelease(release) {
   if (!release || typeof release !== "object") {
@@ -190,19 +192,48 @@ function isPositiveCount(value) {
   return Number.isSafeInteger(value) && value > 0;
 }
 
+export function parseMarketplaceSnapshot(snapshot) {
+  const units = snapshot?.elgatoUnits;
+  const through = snapshot?.through;
+  if (!Number.isSafeInteger(units) || units < 0) throw new TypeError("Instantánea de Marketplace inválida.");
+  if (typeof through !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(through) ||
+      Number.isNaN(Date.parse(`${through}T00:00:00Z`))) {
+    throw new TypeError("La instantánea de Marketplace no tiene una fecha válida.");
+  }
+  return { units, through };
+}
+
+export function formatSnapshotDate(isoDate, lang = "es") {
+  return new Intl.DateTimeFormat(lang === "en" ? "en-US" : "es-ES", {
+    day: "numeric", month: "short", year: "numeric", timeZone: "UTC"
+  }).format(new Date(`${isoDate}T00:00:00Z`)).replace(/\.(?=\s|$)/g, "");
+}
+
+function pluralLabel(node, prefix, count, lang) {
+  const form = new Intl.PluralRules(lang).select(count) === "one" ? "One" : "Other";
+  return node.dataset[`${prefix}${form}`] ?? "{count}";
+}
+
 // Solo se muestran cifras conocidas y mayores que cero; el resto permanece oculto.
-export function applyPublicMetrics({ downloads = null, stars = null } = {}, root = document) {
+// La cifra de Marketplace es una instantánea fechada; la de GitHub se consulta en vivo.
+export function applyPublicMetrics({ downloads = null, stars = null, marketplace = null } = {}, root = document) {
   const lang = root.documentElement?.lang || "es";
+  const elgato = isPositiveCount(marketplace?.units) ? marketplace : null;
+  const github = isPositiveCount(downloads) ? downloads : null;
 
   root.querySelectorAll("[data-download-count]").forEach((node) => {
-    if (!isPositiveCount(downloads)) {
-      node.hidden = true;
-      return;
+    const parts = [];
+    if (elgato) {
+      parts.push(pluralLabel(node, "labelElgato", elgato.units, lang)
+        .replace("{count}", formatCount(elgato.units, lang))
+        .replace("{date}", formatSnapshotDate(elgato.through, lang)));
     }
-    const plural = new Intl.PluralRules(lang).select(downloads) === "one" ? "labelOne" : "labelOther";
-    const template = node.dataset[plural] ?? "{count}";
-    node.textContent = template.replace("{count}", formatCount(downloads, lang));
-    node.hidden = false;
+    if (github) {
+      const template = elgato ? node.dataset.labelGithubShort ?? "{count}" : pluralLabel(node, "label", github, lang);
+      parts.push(template.replace("{count}", formatCount(github, lang)));
+    }
+    node.textContent = parts.join(" · ");
+    node.hidden = parts.length === 0;
   });
 
   root.querySelectorAll("[data-star-count]").forEach((node) => {
@@ -215,8 +246,9 @@ export function applyPublicMetrics({ downloads = null, stars = null } = {}, root
     node.hidden = false;
   });
 
+  const total = (elgato?.units ?? 0) + (github ?? 0);
   const schemaNode = root.querySelector("[data-release-schema]");
-  if (schemaNode?.textContent && isPositiveCount(downloads)) {
+  if (schemaNode?.textContent && total > 0) {
     try {
       const schema = JSON.parse(schemaNode.textContent);
       const software = schema["@graph"]?.find((item) => item["@type"] === "SoftwareApplication");
@@ -224,7 +256,7 @@ export function applyPublicMetrics({ downloads = null, stars = null } = {}, root
         software.interactionStatistic = {
           "@type": "InteractionCounter",
           interactionType: "https://schema.org/DownloadAction",
-          userInteractionCount: downloads
+          userInteractionCount: total
         };
         schemaNode.textContent = JSON.stringify(schema);
       }
@@ -234,18 +266,23 @@ export function applyPublicMetrics({ downloads = null, stars = null } = {}, root
   }
 }
 
+export async function fetchMarketplaceSnapshot(fetchJson = fetch) {
+  const response = await fetchJson(MARKETPLACE_SNAPSHOT, { cache: "no-cache" });
+  if (!response.ok) throw new Error(`metrics.json ${response.status}`);
+  return parseMarketplaceSnapshot(await response.json());
+}
+
 export async function hydratePublicMetrics(fetchJson = fetch, root = document) {
-  const [downloads, stars] = await Promise.all([
-    fetchTotalDownloads(fetchJson).catch((error) => {
-      console.info("No se pudo consultar el total de descargas; no se muestra la cifra.", error);
-      return null;
-    }),
-    fetchStarCount(fetchJson).catch((error) => {
-      console.info("No se pudo consultar el número de estrellas; no se muestra la cifra.", error);
-      return null;
-    })
+  const quiet = (message) => (error) => {
+    console.info(message, error);
+    return null;
+  };
+  const [downloads, stars, marketplace] = await Promise.all([
+    fetchTotalDownloads(fetchJson).catch(quiet("No se pudo consultar el total de descargas; no se muestra la cifra.")),
+    fetchStarCount(fetchJson).catch(quiet("No se pudo consultar el número de estrellas; no se muestra la cifra.")),
+    fetchMarketplaceSnapshot(fetchJson).catch(quiet("No se pudo leer la instantánea de Marketplace; no se muestra la cifra."))
   ]);
-  const metrics = { downloads, stars };
+  const metrics = { downloads, stars, marketplace };
   applyPublicMetrics(metrics, root);
   return metrics;
 }

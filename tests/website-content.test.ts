@@ -91,7 +91,7 @@ describe("landing estática ES/EN", () => {
   it("oculta las métricas públicas hasta conocer una cifra real de GitHub", async () => {
     for (const page of ["public/index.html", "public/en/index.html"]) {
       const html = await readFile(page, "utf8");
-      const downloads = html.match(/<li data-download-count[^>]*>([^<]*)<\/li>/);
+      const downloads = html.match(/<p class="hero-metrics" data-download-count[^>]*>([^<]*)<\/p>/);
       assert.ok(downloads, `${page} debe reservar el recuento de descargas`);
       assert.match(downloads[0], /\shidden>/);
       assert.equal(downloads[1], "");
@@ -99,6 +99,21 @@ describe("landing estática ES/EN", () => {
       const stars = html.match(/<div data-star-count hidden><dt>[^<]+<\/dt><dd><\/dd><\/div>/);
       assert.ok(stars, `${page} debe reservar las estrellas vacías y ocultas`);
       assert.doesNotMatch(html, /"interactionStatistic"/);
+    }
+  });
+
+  it("publica una instantánea fechada de Marketplace documentada en el README", async () => {
+    const snapshot = JSON.parse(await readFile("public/assets/metrics.json", "utf8"));
+    assert.ok(Number.isSafeInteger(snapshot.elgatoUnits) && snapshot.elgatoUnits > 0);
+    assert.match(snapshot.through, /^\d{4}-\d{2}-\d{2}$/);
+    assert.ok(typeof snapshot.source === "string" && snapshot.source.length > 0);
+    assert.deepEqual(Object.keys(snapshot).sort(), ["elgatoUnits", "source", "through"]);
+    const readme = await readFile("README.md", "utf8");
+    assert.match(readme, /public\/assets\/metrics\.json/);
+    for (const page of ["public/index.html", "public/en/index.html"]) {
+      const html = await readFile(page, "utf8");
+      assert.match(html, /data-label-elgato-other="\{count\} [^"]*Elgato Marketplace[^"]*\{date\}/);
+      assert.doesNotMatch(html, /\$\d|ventas|sales/i);
     }
   });
 
